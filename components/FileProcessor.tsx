@@ -75,7 +75,9 @@ const FileProcessor: React.FC = () => {
 
       const mimeType = operation === 'compress' ? 'application/gzip' : file.type;
       const extension = operation === 'compress' ? '.gz' : (file.name.endsWith('.gz') ? file.name.slice(0,-3) : '.decompressed');
-      const outputFilename = (operation === 'compress' ? file.name : file.name.replace(/\.gz$/, '')) + (operation === 'decompress' ? extension : '');
+      const outputFilename = operation === 'compress' 
+        ? `${file.name}.gz` 
+        : file.name.replace(/\.gz$/, '') + extension;
 
       setResult({
         originalSize: fileContent.length,
