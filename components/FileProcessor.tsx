@@ -17,6 +17,9 @@ const FileProcessor: React.FC = () => {
   const [result, setResult] = useState<ProcessResult | null>(null);
   const [comparisonResult, setComparisonResult] = useState<ComparisonResult | null>(null);
   const [wasmReady, setWasmReady] = useState<boolean>(false);
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [progress, setProgress] = useState<number>(0);
+  const [progressMessage, setProgressMessage] = useState<string>('');
 
   useEffect(() => {
     init()
@@ -24,25 +27,57 @@ const FileProcessor: React.FC = () => {
       .catch(console.error);
   }, []);
 
+  const processSelectedFile = useCallback((selectedFile: File) => {
+    setFile(selectedFile);
+    setResult(null);
+    setComparisonResult(null);
+    setError(null);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (event.target?.result instanceof ArrayBuffer) {
+        setFileContent(new Uint8Array(event.target.result));
+      }
+    };
+    reader.onerror = () => {
+      setError("Failed to read the file.");
+    };
+    reader.readAsArrayBuffer(selectedFile);
+  }, []);
+
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
-      setFile(selectedFile);
-      setResult(null);
-      setComparisonResult(null);
-      setError(null);
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result instanceof ArrayBuffer) {
-          setFileContent(new Uint8Array(event.target.result));
-        }
-      };
-      reader.onerror = () => {
-        setError("Failed to read the file.");
-      };
-      reader.readAsArrayBuffer(selectedFile);
+      processSelectedFile(selectedFile);
     }
+  }, [processSelectedFile]);
+
+  const handleDragEnter = useCallback((e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
   }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const droppedFiles = e.dataTransfer.files;
+    if (droppedFiles && droppedFiles.length > 0) {
+      processSelectedFile(droppedFiles[0]);
+    }
+  }, [processSelectedFile]);
 
   const formatBytes = (bytes: number, decimals = 2): string => {
     if (bytes === 0) return '0 Bytes';
@@ -60,6 +95,8 @@ const FileProcessor: React.FC = () => {
     setError(null);
     setResult(null);
     setComparisonResult(null);
+    setProgress(0);
+    setProgressMessage('Initializing...');
 
     try {
       // Comparison mode - run both implementations
@@ -68,6 +105,10 @@ const FileProcessor: React.FC = () => {
         if (typeof pako === 'undefined') throw new Error("Pako library not loaded.");
 
         // Run WASM
+        setProgress(25);
+        setProgressMessage('Running WebAssembly compression...');
+        await new Promise(resolve => setTimeout(resolve, 10)); // Allow UI to update
+        
         const wasmStartTime = performance.now();
         const wasmProcessedData = operation === 'compress' 
           ? wasm.compress(fileContent) 
@@ -75,11 +116,19 @@ const FileProcessor: React.FC = () => {
         const wasmEndTime = performance.now();
 
         // Run JavaScript
+        setProgress(60);
+        setProgressMessage('Running JavaScript compression...');
+        await new Promise(resolve => setTimeout(resolve, 10)); // Allow UI to update
+        
         const jsStartTime = performance.now();
         const jsProcessedData = operation === 'compress' 
           ? pako.gzip(fileContent) 
           : pako.ungzip(fileContent);
         const jsEndTime = performance.now();
+
+        setProgress(90);
+        setProgressMessage('Finalizing results...');
+        await new Promise(resolve => setTimeout(resolve, 10)); // Allow UI to update
 
         const mimeType = operation === 'compress' ? 'application/gzip' : file.type;
         const outputFilename = operation === 'compress' 
@@ -111,6 +160,10 @@ const FileProcessor: React.FC = () => {
         });
       } else {
         // Single implementation mode
+        setProgress(30);
+        setProgressMessage(`${operation === 'compress' ? 'Compressing' : 'Decompressing'} with ${selectedImpl === Implementation.Wasm ? 'WebAssembly' : 'JavaScript'}...`);
+        await new Promise(resolve => setTimeout(resolve, 10)); // Allow UI to update
+        
         const startTime = performance.now();
         let processedData: Uint8Array;
         
@@ -123,6 +176,10 @@ const FileProcessor: React.FC = () => {
         }
         
         const endTime = performance.now();
+
+        setProgress(90);
+        setProgressMessage('Finalizing...');
+        await new Promise(resolve => setTimeout(resolve, 10)); // Allow UI to update
 
         const mimeType = operation === 'compress' ? 'application/gzip' : file.type;
         const extension = operation === 'compress' ? '.gz' : (file.name.endsWith('.gz') ? file.name.slice(0,-3) : '.decompressed');
@@ -139,11 +196,21 @@ const FileProcessor: React.FC = () => {
         });
       }
 
+      setProgress(100);
+      setProgressMessage('Complete!');
+
     } catch (e: any) {
       setError(e.message || "An unknown error occurred during processing.");
+      setProgress(0);
+      setProgressMessage('');
       console.error(e);
     } finally {
       setIsLoading(false);
+      // Reset progress after a brief delay
+      setTimeout(() => {
+        setProgress(0);
+        setProgressMessage('');
+      }, 1000);
     }
   }, [file, fileContent, selectedImpl, wasmReady]);
   
@@ -204,12 +271,31 @@ const FileProcessor: React.FC = () => {
   return (
     <div className="bg-white dark:bg-slate-800/50 backdrop-blur-sm p-6 md:p-8 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-lg dark:shadow-2xl dark:shadow-slate-900/50">
       
-      {/* Step 1: File Upload */}
+      {/* Step 1: File Upload with Drag & Drop */}
       <div className="mb-6">
-        <label htmlFor="file-upload" className="w-full h-40 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-brand-500 dark:hover:border-brand-400 hover:bg-gray-50 dark:hover:bg-slate-800 transition-all">
-          <UploadIcon className="w-10 h-10 text-gray-400 dark:text-slate-500 mb-2"/>
+        <label 
+          htmlFor="file-upload" 
+          onDragEnter={handleDragEnter}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className={`w-full h-40 border-2 border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer transition-all ${
+            isDragging 
+              ? 'border-brand-500 bg-brand-50 dark:border-brand-400 dark:bg-brand-500/20 scale-105' 
+              : 'border-gray-300 dark:border-slate-600 hover:border-brand-500 dark:hover:border-brand-400 hover:bg-gray-50 dark:hover:bg-slate-800'
+          }`}
+        >
+          <UploadIcon className={`w-10 h-10 mb-2 transition-colors ${
+            isDragging 
+              ? 'text-brand-500 dark:text-brand-400' 
+              : 'text-gray-400 dark:text-slate-500'
+          }`}/>
           <p className="font-semibold text-gray-700 dark:text-slate-300">
-            {file ? 'File selected:' : 'Click to upload a file'}
+            {isDragging 
+              ? 'Drop file here' 
+              : file 
+                ? 'File selected:' 
+                : 'Click or drag & drop to upload'}
           </p>
           <p className="text-sm text-gray-500 dark:text-slate-400">
             {file ? file.name : 'Your data stays on your device'}
@@ -255,6 +341,28 @@ const FileProcessor: React.FC = () => {
            {isLoading ? 'Processing...' : 'Decompress'}
         </button>
       </div>
+
+      {/* Progress Bar */}
+      {isLoading && progress > 0 && (
+        <div className="mb-6 bg-gray-50 dark:bg-slate-900/50 p-4 rounded-lg border border-gray-200 dark:border-slate-700">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-sm font-semibold text-gray-700 dark:text-slate-300">
+              {progressMessage}
+            </span>
+            <span className="text-sm font-bold text-brand-600 dark:text-brand-400">
+              {progress}%
+            </span>
+          </div>
+          <div className="w-full bg-gray-200 dark:bg-slate-700 rounded-full h-3 overflow-hidden">
+            <div 
+              className="bg-gradient-to-r from-brand-500 to-brand-600 dark:from-brand-400 dark:to-brand-500 h-3 rounded-full transition-all duration-300 ease-out"
+              style={{ width: `${progress}%` }}
+            >
+              <div className="h-full w-full bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* Step 4: Results */}
       {error && <div className="text-center p-4 mb-4 bg-red-50 dark:bg-red-500/20 text-red-700 dark:text-red-300 border border-red-300 dark:border-red-500 rounded-lg">{error}</div>}
