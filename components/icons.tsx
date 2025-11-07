@@ -33,27 +33,19 @@ export const DownloadIcon: React.FC<{ className?: string }> = ({ className }) =>
 
 
 export const WasmIcon: React.FC<{ className?: string }> = ({ className }) => (
-    <svg 
+    <img 
+        src="https://upload.wikimedia.org/wikipedia/commons/1/1f/WebAssembly_Logo.svg"
+        alt="WebAssembly"
         className={className || "w-6 h-6"}
-        viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"
-    >
-        <path d="M12 2L2 7V17L12 22L22 17V7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M2 7L12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M12 22V12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M22 7L12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M17 4.5L7 9.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
+    />
 );
 
 export const JsIcon: React.FC<{ className?: string }> = ({ className }) => (
-    <svg 
+    <img 
+        src="https://upload.wikimedia.org/wikipedia/commons/6/6a/JavaScript-logo.png"
+        alt="JavaScript"
         className={className || "w-6 h-6"}
-        viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"
-    >
-        <path d="M21 13V12C21 7.02944 16.9706 3 12 3C7.02944 3 3 7.02944 3 12C3 16.9706 7.02944 21 12 21H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M10 8H7V16H10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M17 8H14V14C14 15.1046 14.8954 16 16 16C17.1046 16 18 15.1046 18 14V13.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
+    />
 );
 
 export const GithubIcon: React.FC<{ className?: string }> = ({ className }) => (

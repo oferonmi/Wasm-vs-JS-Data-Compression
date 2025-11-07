@@ -109,7 +109,6 @@ Try both implementations with different file sizes to see the performance differ
 
 ### If compression fails in the browser:
 - Check browser console for errors
-- Make sure Pako.js is loaded (check Network tab)
 - Ensure the Wasm module initialized properly
 
 

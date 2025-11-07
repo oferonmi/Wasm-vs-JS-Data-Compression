@@ -6,6 +6,30 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Wasm vs JS Data Compression</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              brand: {
+                DEFAULT: '#4a7db0',
+                50: '#f0f5fa',
+                100: '#e1ecf5',
+                200: '#c3d9eb',
+                300: '#9bbfd9',
+                400: '#6c9dc4',
+                500: '#4a7db0',
+                600: '#3d6794',
+                700: '#335379',
+                800: '#2d4664',
+                900: '#293c54',
+              }
+            }
+          }
+        }
+      }
+    </script>
     <!-- Pako: zlib port to javascript, for JS implementation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
   <script type="importmap">

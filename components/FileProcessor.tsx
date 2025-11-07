@@ -81,7 +81,7 @@ const FileProcessor: React.FC = () => {
         originalSize: fileContent.length,
         processedSize: processedData.length,
         time: endTime - startTime,
-        processedFile: new Blob([processedData], { type: mimeType }),
+        processedFile: new Blob([new Uint8Array(processedData)], { type: mimeType }),
         fileName: outputFilename,
       });
 
@@ -112,7 +112,9 @@ const FileProcessor: React.FC = () => {
   }> = ({ value, label, icon }) => (
     <label className={`
       flex-1 p-4 rounded-lg border-2 transition-all cursor-pointer
-      ${selectedImpl === value ? 'bg-cyan-500/20 border-cyan-400' : 'bg-slate-800 border-slate-700 hover:border-slate-500'}
+      ${selectedImpl === value 
+        ? 'bg-brand-50 border-brand-500 dark:bg-brand-500/20 dark:border-brand-400' 
+        : 'bg-white border-gray-300 hover:border-brand-400 dark:bg-slate-800 dark:border-slate-600 dark:hover:border-slate-500'}
     `}>
       <input
         type="radio"
@@ -130,16 +132,16 @@ const FileProcessor: React.FC = () => {
   );
 
   return (
-    <div className="bg-slate-800/50 backdrop-blur-sm p-6 md:p-8 rounded-2xl border border-slate-700 shadow-2xl shadow-slate-900/50">
+    <div className="bg-white dark:bg-slate-800/50 backdrop-blur-sm p-6 md:p-8 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-lg dark:shadow-2xl dark:shadow-slate-900/50">
       
       {/* Step 1: File Upload */}
       <div className="mb-6">
-        <label htmlFor="file-upload" className="w-full h-40 border-2 border-dashed border-slate-600 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-cyan-400 hover:bg-slate-800 transition-all">
-          <UploadIcon className="w-10 h-10 text-slate-500 mb-2"/>
-          <p className="font-semibold text-slate-300">
+        <label htmlFor="file-upload" className="w-full h-40 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-brand-500 dark:hover:border-brand-400 hover:bg-gray-50 dark:hover:bg-slate-800 transition-all">
+          <UploadIcon className="w-10 h-10 text-gray-400 dark:text-slate-500 mb-2"/>
+          <p className="font-semibold text-gray-700 dark:text-slate-300">
             {file ? 'File selected:' : 'Click to upload a file'}
           </p>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-gray-500 dark:text-slate-400">
             {file ? file.name : 'Your data stays on your device'}
           </p>
         </label>
@@ -160,25 +162,25 @@ const FileProcessor: React.FC = () => {
         <button
           onClick={() => processFile('compress')}
           disabled={!fileContent || isLoading}
-          className="w-full text-lg font-bold bg-gradient-to-r from-blue-500 to-blue-600 text-white py-3 px-6 rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105"
+          className="w-full text-lg font-bold bg-brand-500 hover:bg-brand-600 dark:bg-brand-600 dark:hover:bg-brand-700 text-white py-3 px-6 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 shadow-md"
         >
           {isLoading ? 'Processing...' : 'Compress'}
         </button>
         <button
           onClick={() => processFile('decompress')}
           disabled={!fileContent || isLoading}
-          className="w-full text-lg font-bold bg-gradient-to-r from-purple-500 to-purple-600 text-white py-3 px-6 rounded-lg hover:from-purple-600 hover:to-purple-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105"
+          className="w-full text-lg font-bold bg-gray-600 hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-800 text-white py-3 px-6 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 shadow-md"
         >
            {isLoading ? 'Processing...' : 'Decompress'}
         </button>
       </div>
       
       {/* Step 4: Results */}
-      {error && <div className="text-center p-4 mb-4 bg-red-500/20 text-red-300 border border-red-500 rounded-lg">{error}</div>}
+      {error && <div className="text-center p-4 mb-4 bg-red-50 dark:bg-red-500/20 text-red-700 dark:text-red-300 border border-red-300 dark:border-red-500 rounded-lg">{error}</div>}
 
       {result && (
-        <div className="bg-slate-900/50 p-6 rounded-lg border border-slate-700">
-          <h3 className="text-2xl font-bold text-center mb-4 text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-blue-400">Results</h3>
+        <div className="bg-gray-50 dark:bg-slate-900/50 p-6 rounded-lg border border-gray-200 dark:border-slate-700">
+          <h3 className="text-2xl font-bold text-center mb-4 text-transparent bg-clip-text bg-gradient-to-r from-brand-600 to-brand-800 dark:from-brand-400 dark:to-brand-600">Results</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <StatCard label="Original Size" value={formatBytes(result.originalSize)} />
             <StatCard label="Processed Size" value={formatBytes(result.processedSize)} />
@@ -186,7 +188,7 @@ const FileProcessor: React.FC = () => {
           </div>
           <button 
             onClick={handleDownload}
-            className="w-full flex items-center justify-center gap-2 text-lg font-bold bg-green-600 text-white py-3 px-6 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-2 text-lg font-bold bg-brand-500 hover:bg-brand-600 dark:bg-brand-600 dark:hover:bg-brand-700 text-white py-3 px-6 rounded-lg transition-colors shadow-md"
           >
             <DownloadIcon />
             Download Result
