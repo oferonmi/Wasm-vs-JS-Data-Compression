@@ -1,0 +1,5 @@
+{
+  "name": "Wasm vs JS Data Compression",
+  "description": "A client-side utility to compare the performance of WebAssembly (Rust) and pure JavaScript for data compression and decompression tasks. Upload a file, choose an implementation, and see the speed difference.",
+  "requestFramePermissions": []
+}
