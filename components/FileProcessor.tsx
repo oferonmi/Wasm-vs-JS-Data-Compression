@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { Implementation, ProcessResult } from '../types';
+import { Implementation, ProcessResult, ComparisonResult } from '../types';
 import init, * as wasm from '../services/compressor';
 import StatCard from './StatCard';
 import { UploadIcon, DownloadIcon, WasmIcon, JsIcon } from './icons';
@@ -15,6 +15,7 @@ const FileProcessor: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ProcessResult | null>(null);
+  const [comparisonResult, setComparisonResult] = useState<ComparisonResult | null>(null);
   const [wasmReady, setWasmReady] = useState<boolean>(false);
 
   useEffect(() => {
@@ -28,6 +29,7 @@ const FileProcessor: React.FC = () => {
     if (selectedFile) {
       setFile(selectedFile);
       setResult(null);
+      setComparisonResult(null);
       setError(null);
       const reader = new FileReader();
       reader.onload = (event) => {
@@ -57,35 +59,85 @@ const FileProcessor: React.FC = () => {
     setIsLoading(true);
     setError(null);
     setResult(null);
+    setComparisonResult(null);
 
-    const startTime = performance.now();
     try {
-      let processedData: Uint8Array;
-      
-      // Determine which function to call
-      if (selectedImpl === Implementation.Wasm) {
+      // Comparison mode - run both implementations
+      if (selectedImpl === Implementation.Compare) {
         if (!wasmReady) throw new Error("Wasm module not ready.");
-        processedData = operation === 'compress' ? wasm.compress(fileContent) : wasm.decompress(fileContent);
-      } else {
         if (typeof pako === 'undefined') throw new Error("Pako library not loaded.");
-        processedData = operation === 'compress' ? pako.gzip(fileContent) : pako.ungzip(fileContent);
+
+        // Run WASM
+        const wasmStartTime = performance.now();
+        const wasmProcessedData = operation === 'compress' 
+          ? wasm.compress(fileContent) 
+          : wasm.decompress(fileContent);
+        const wasmEndTime = performance.now();
+
+        // Run JavaScript
+        const jsStartTime = performance.now();
+        const jsProcessedData = operation === 'compress' 
+          ? pako.gzip(fileContent) 
+          : pako.ungzip(fileContent);
+        const jsEndTime = performance.now();
+
+        const mimeType = operation === 'compress' ? 'application/gzip' : file.type;
+        const outputFilename = operation === 'compress' 
+          ? `${file.name}.gz` 
+          : file.name.replace(/\.gz$/, '') + (file.name.endsWith('.gz') ? '' : '.decompressed');
+
+        const wasmTime = wasmEndTime - wasmStartTime;
+        const jsTime = jsEndTime - jsStartTime;
+
+        setComparisonResult({
+          wasm: {
+            originalSize: fileContent.length,
+            processedSize: wasmProcessedData.length,
+            time: wasmTime,
+            processedFile: new Blob([new Uint8Array(wasmProcessedData)], { type: mimeType }),
+            fileName: outputFilename,
+          },
+          js: {
+            originalSize: fileContent.length,
+            processedSize: jsProcessedData.length,
+            time: jsTime,
+            processedFile: new Blob([new Uint8Array(jsProcessedData)], { type: mimeType }),
+            fileName: outputFilename,
+          },
+          winner: {
+            speed: wasmTime === jsTime ? 'tie' : (wasmTime < jsTime ? Implementation.Wasm : Implementation.JavaScript),
+            size: wasmProcessedData.length === jsProcessedData.length ? 'tie' : (wasmProcessedData.length < jsProcessedData.length ? Implementation.Wasm : Implementation.JavaScript),
+          }
+        });
+      } else {
+        // Single implementation mode
+        const startTime = performance.now();
+        let processedData: Uint8Array;
+        
+        if (selectedImpl === Implementation.Wasm) {
+          if (!wasmReady) throw new Error("Wasm module not ready.");
+          processedData = operation === 'compress' ? wasm.compress(fileContent) : wasm.decompress(fileContent);
+        } else {
+          if (typeof pako === 'undefined') throw new Error("Pako library not loaded.");
+          processedData = operation === 'compress' ? pako.gzip(fileContent) : pako.ungzip(fileContent);
+        }
+        
+        const endTime = performance.now();
+
+        const mimeType = operation === 'compress' ? 'application/gzip' : file.type;
+        const extension = operation === 'compress' ? '.gz' : (file.name.endsWith('.gz') ? file.name.slice(0,-3) : '.decompressed');
+        const outputFilename = operation === 'compress' 
+          ? `${file.name}.gz` 
+          : file.name.replace(/\.gz$/, '') + extension;
+
+        setResult({
+          originalSize: fileContent.length,
+          processedSize: processedData.length,
+          time: endTime - startTime,
+          processedFile: new Blob([new Uint8Array(processedData)], { type: mimeType }),
+          fileName: outputFilename,
+        });
       }
-      
-      const endTime = performance.now();
-
-      const mimeType = operation === 'compress' ? 'application/gzip' : file.type;
-      const extension = operation === 'compress' ? '.gz' : (file.name.endsWith('.gz') ? file.name.slice(0,-3) : '.decompressed');
-      const outputFilename = operation === 'compress' 
-        ? `${file.name}.gz` 
-        : file.name.replace(/\.gz$/, '') + extension;
-
-      setResult({
-        originalSize: fileContent.length,
-        processedSize: processedData.length,
-        time: endTime - startTime,
-        processedFile: new Blob([new Uint8Array(processedData)], { type: mimeType }),
-        fileName: outputFilename,
-      });
 
     } catch (e: any) {
       setError(e.message || "An unknown error occurred during processing.");
@@ -95,16 +147,32 @@ const FileProcessor: React.FC = () => {
     }
   }, [file, fileContent, selectedImpl, wasmReady]);
   
-  const handleDownload = () => {
-    if (!result) return;
-    const url = URL.createObjectURL(result.processedFile);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = result.fileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  const handleDownload = (implementation?: Implementation) => {
+    // For single implementation mode
+    if (result && !implementation) {
+      const url = URL.createObjectURL(result.processedFile);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = result.fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+    // For comparison mode
+    else if (comparisonResult && implementation) {
+      const resultToDownload = implementation === Implementation.Wasm 
+        ? comparisonResult.wasm 
+        : comparisonResult.js;
+      const url = URL.createObjectURL(resultToDownload.processedFile);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = resultToDownload.fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
   };
   
   const RadioCard: React.FC<{
@@ -156,6 +224,17 @@ const FileProcessor: React.FC = () => {
           <legend className="sr-only">Choose Implementation</legend>
           <RadioCard value={Implementation.Wasm} label="WebAssembly" icon={<WasmIcon />} />
           <RadioCard value={Implementation.JavaScript} label="JavaScript" icon={<JsIcon />} />
+          <RadioCard 
+            value={Implementation.Compare} 
+            label="Compare Both" 
+            icon={
+              <div className="flex gap-1">
+                <WasmIcon className="w-5 h-5" />
+                <span className="text-sm">vs</span>
+                <JsIcon className="w-5 h-5" />
+              </div>
+            } 
+          />
         </fieldset>
       </div>
 
@@ -180,7 +259,8 @@ const FileProcessor: React.FC = () => {
       {/* Step 4: Results */}
       {error && <div className="text-center p-4 mb-4 bg-red-50 dark:bg-red-500/20 text-red-700 dark:text-red-300 border border-red-300 dark:border-red-500 rounded-lg">{error}</div>}
 
-      {result && (
+      {/* Single Implementation Results */}
+      {result && !comparisonResult && (
         <div className="bg-gray-50 dark:bg-slate-900/50 p-6 rounded-lg border border-gray-200 dark:border-slate-700">
           <h3 className="text-2xl font-bold text-center mb-4 text-transparent bg-clip-text bg-gradient-to-r from-brand-600 to-brand-800 dark:from-brand-400 dark:to-brand-600">Results</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -189,12 +269,101 @@ const FileProcessor: React.FC = () => {
             <StatCard label="Time Taken" value={`${result.time.toFixed(2)} ms`} />
           </div>
           <button 
-            onClick={handleDownload}
+            onClick={() => handleDownload()}
             className="w-full flex items-center justify-center gap-2 text-lg font-bold bg-brand-500 hover:bg-brand-600 dark:bg-brand-600 dark:hover:bg-brand-700 text-white py-3 px-6 rounded-lg transition-colors shadow-md"
           >
             <DownloadIcon />
             Download Result
           </button>
+        </div>
+      )}
+
+      {/* Comparison Results */}
+      {comparisonResult && (
+        <div className="bg-gray-50 dark:bg-slate-900/50 p-6 rounded-lg border border-gray-200 dark:border-slate-700">
+          <h3 className="text-2xl font-bold text-center mb-4 text-transparent bg-clip-text bg-gradient-to-r from-brand-600 to-brand-800 dark:from-brand-400 dark:to-brand-600">
+            Comparison Results
+          </h3>
+          
+          {/* Comparison Table */}
+          <div className="overflow-x-auto mb-6">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b-2 border-gray-300 dark:border-slate-600">
+                  <th className="py-3 px-4 font-bold text-gray-700 dark:text-slate-300">Metric</th>
+                  <th className="py-3 px-4 font-bold text-center">
+                    <div className="flex items-center justify-center gap-2">
+                      <WasmIcon className="w-5 h-5" />
+                      <span>WebAssembly</span>
+                    </div>
+                  </th>
+                  <th className="py-3 px-4 font-bold text-center">
+                    <div className="flex items-center justify-center gap-2">
+                      <JsIcon className="w-5 h-5" />
+                      <span>JavaScript</span>
+                    </div>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-b border-gray-200 dark:border-slate-700">
+                  <td className="py-3 px-4 font-semibold text-gray-700 dark:text-slate-300">Original Size</td>
+                  <td className="py-3 px-4 text-center text-gray-600 dark:text-slate-400">{formatBytes(comparisonResult.wasm.originalSize)}</td>
+                  <td className="py-3 px-4 text-center text-gray-600 dark:text-slate-400">{formatBytes(comparisonResult.js.originalSize)}</td>
+                </tr>
+                <tr className="border-b border-gray-200 dark:border-slate-700">
+                  <td className="py-3 px-4 font-semibold text-gray-700 dark:text-slate-300">Processed Size</td>
+                  <td className={`py-3 px-4 text-center font-bold ${comparisonResult.winner.size === Implementation.Wasm || comparisonResult.winner.size === 'tie' ? 'text-green-600 dark:text-green-400' : 'text-gray-600 dark:text-slate-400'}`}>
+                    {formatBytes(comparisonResult.wasm.processedSize)}
+                    {(comparisonResult.winner.size === Implementation.Wasm || comparisonResult.winner.size === 'tie') && ' 🏆'}
+                  </td>
+                  <td className={`py-3 px-4 text-center font-bold ${comparisonResult.winner.size === Implementation.JavaScript || comparisonResult.winner.size === 'tie' ? 'text-green-600 dark:text-green-400' : 'text-gray-600 dark:text-slate-400'}`}>
+                    {formatBytes(comparisonResult.js.processedSize)}
+                    {(comparisonResult.winner.size === Implementation.JavaScript || comparisonResult.winner.size === 'tie') && ' 🏆'}
+                  </td>
+                </tr>
+                <tr className="border-b border-gray-200 dark:border-slate-700">
+                  <td className="py-3 px-4 font-semibold text-gray-700 dark:text-slate-300">Processing Time</td>
+                  <td className={`py-3 px-4 text-center font-bold ${comparisonResult.winner.speed === Implementation.Wasm || comparisonResult.winner.speed === 'tie' ? 'text-green-600 dark:text-green-400' : 'text-gray-600 dark:text-slate-400'}`}>
+                    {comparisonResult.wasm.time.toFixed(2)} ms
+                    {(comparisonResult.winner.speed === Implementation.Wasm || comparisonResult.winner.speed === 'tie') && ' 🏆'}
+                  </td>
+                  <td className={`py-3 px-4 text-center font-bold ${comparisonResult.winner.speed === Implementation.JavaScript || comparisonResult.winner.speed === 'tie' ? 'text-green-600 dark:text-green-400' : 'text-gray-600 dark:text-slate-400'}`}>
+                    {comparisonResult.js.time.toFixed(2)} ms
+                    {(comparisonResult.winner.speed === Implementation.JavaScript || comparisonResult.winner.speed === 'tie') && ' 🏆'}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="py-3 px-4 font-semibold text-gray-700 dark:text-slate-300">Speed Difference</td>
+                  <td colSpan={2} className="py-3 px-4 text-center font-bold text-brand-600 dark:text-brand-400">
+                    {comparisonResult.winner.speed === 'tie'
+                      ? 'Same speed!'
+                      : comparisonResult.winner.speed === Implementation.Wasm 
+                        ? `WebAssembly is ${(comparisonResult.js.time / comparisonResult.wasm.time).toFixed(2)}x faster`
+                        : `JavaScript is ${(comparisonResult.wasm.time / comparisonResult.js.time).toFixed(2)}x faster`}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Download Buttons */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <button 
+              onClick={() => handleDownload(Implementation.Wasm)}
+              className="flex items-center justify-center gap-2 text-lg font-bold bg-brand-500 hover:bg-brand-600 dark:bg-brand-600 dark:hover:bg-brand-700 text-white py-3 px-6 rounded-lg transition-colors shadow-md"
+            >
+              <DownloadIcon />
+              Download WASM Result
+            </button>
+            <button 
+              onClick={() => handleDownload(Implementation.JavaScript)}
+              className="flex items-center justify-center gap-2 text-lg font-bold bg-gray-600 hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-800 text-white py-3 px-6 rounded-lg transition-colors shadow-md"
+            >
+              <DownloadIcon />
+              Download JS Result
+            </button>
+          </div>
         </div>
       )}
 
