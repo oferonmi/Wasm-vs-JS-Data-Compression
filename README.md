@@ -175,10 +175,6 @@ The app measures execution time for both implementations, allowing you to see:
 - All file processing happens client-side; no data is sent to any server
 - Larger files will show more significant performance differences between implementations
 
-## View in AI Studio
-
-https://ai.studio/apps/drive/1eiebi1B11YXkXSGeG54ji3I8jTptXVRp
-
 ## License
 
 MIT
